@@ -33,8 +33,8 @@ module Excon
             remaining -= CHUNK_SIZE
           end
         elsif response.headers['Transfer-Encoding'] == 'chunked'
-          socket.read_chunked_body do |buffer|
-            response.body << buffer.read
+          socket.read_chunked_body do |data|
+            response.body << data
           end
         end
       end
