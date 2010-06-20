@@ -3,6 +3,7 @@ source "http://rubygems.org"
 group :test do
   gem "shindo"
   gem "tach"
+  gem "annals"
 
   gem "sinatra"
   gem "rake"
