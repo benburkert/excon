@@ -8,6 +8,7 @@ require 'cgi'
 require 'openssl'
 require 'socket'
 require 'uri'
+require 'timeout'
 
 require 'excon/connection'
 require 'excon/errors'

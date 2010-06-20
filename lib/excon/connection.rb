@@ -85,17 +85,23 @@ module Excon
     private
 
     def connect
-      new_socket = TCPSocket.open(@connection[:host], @connection[:port])
+      new_socket = nil
+      Timeout::timeout(1) do
+        new_socket = TCPSocket.open(@connection[:host], @connection[:port])
 
-      if @connection[:scheme] == 'https'
-        @ssl_context = OpenSSL::SSL::SSLContext.new
-        @ssl_context.verify_mode = OpenSSL::SSL::VERIFY_NONE
-        new_socket = OpenSSL::SSL::SSLSocket.new(new_socket, @ssl_context)
-        new_socket.sync_close = true
-        new_socket.connect
+        if @connection[:scheme] == 'https'
+          @ssl_context = OpenSSL::SSL::SSLContext.new
+          @ssl_context.verify_mode = OpenSSL::SSL::VERIFY_NONE
+          new_socket = OpenSSL::SSL::SSLSocket.new(new_socket, @ssl_context)
+          new_socket.sync_close = true
+          new_socket.connect
+        end
+
+        new_socket
       end
-
-      new_socket
+    rescue Timeout::Exception
+      new_socket.close unless new_socket.nil?
+      retry
     end
 
     def closed?
