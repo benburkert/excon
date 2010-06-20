@@ -34,17 +34,17 @@ module Excon
           request << "#{key}: #{value}\r\n"
         end
         request << "\r\n"
-        socket.write(request)
+        io = StringIO.new(request)
 
         if params[:body] ||= @connection[:body]
           if params[:body].is_a?(String)
-            socket.write(params[:body])
+            io << params[:body]
           else
-            while chunk = params[:body].read(CHUNK_SIZE)
-              socket.write(chunk)
-            end
+            IO.copy_stream(params[:body], io)
           end
         end
+
+        socket.write(io)
 
         response = Excon::Response.parse(socket, params, &block)
         if response.headers['Connection'] == 'close'
@@ -109,10 +109,7 @@ module Excon
     end
 
     def socket
-      if closed?
-        reset
-      end
-      sockets[socket_key] ||= connect
+      @socket ||= Socket.new(@connection[:host], @connection[:port])
     end
 
     def sockets

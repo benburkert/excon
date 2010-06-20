@@ -13,6 +13,7 @@ require 'timeout'
 require 'excon/connection'
 require 'excon/errors'
 require 'excon/response'
+require 'excon/socket'
 
 module Excon
 
@@ -20,7 +21,13 @@ module Excon
     VERSION = '0.1.1'
   end
 
-  CHUNK_SIZE = 1048576 # 1 megabyte
+  def self.chunk_size
+    @@chunk_size ||= 1048576 # 1 megabyte
+  end
+
+  def self.chunk_size=(size)
+    @@chunk_size = size
+  end
 
   def self.new(url, params = {})
     Excon::Connection.new(url, params)

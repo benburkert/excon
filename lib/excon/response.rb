@@ -9,15 +9,9 @@ module Excon
 
       response = new
 
-      response.status = socket.readline[9..11].to_i
-      while true
-        data = socket.readline.chop!
-        unless data.empty?
-          key, value = data.split(': ')
-          response.headers[key] = value
-        else
-          break
-        end
+      response.status = socket.read_status
+      socket.read_headers do |key, value|
+        response.headers[key] = value
       end
 
       unless params[:method] == 'HEAD'
@@ -29,20 +23,18 @@ module Excon
         if response.headers['Connection'] == 'close'
           block.call(socket.read)
         elsif response.headers['Content-Length']
+          socket.read_fixed_body(response.headers['Content-Length'].to_i) do |buffer|
+            response.body << buffer.read
+          end
+
           remaining = response.headers['Content-Length'].to_i
           while remaining > 0
             block.call(socket.read([CHUNK_SIZE, remaining].min))
             remaining -= CHUNK_SIZE
           end
         elsif response.headers['Transfer-Encoding'] == 'chunked'
-          while true
-            chunk_size = socket.readline.chop!.to_i(16)
-            chunk = socket.read(chunk_size + 2).chop! # 2 == "/r/n".length
-            if chunk_size > 0
-              block.call(chunk)
-            else
-              break
-            end
+          socket.read_chunked_body do |buffer|
+            response.body << buffer.read
           end
         end
       end
