@@ -28,7 +28,10 @@ module Excon
       nil
     end
 
+
     def read
+      yield unless @buffer.empty?
+
       drain do |data|
         @buffer << data
         yield
@@ -86,32 +89,40 @@ module Excon
       end
     end
 
-    def read_chunked_body
+    def read_chunked_body(&block)
       chunk_buffer, chunk_size = '', nil
 
       read do
-        if chunk_size.nil?
-          if @buffer.include?(CRLF)
-            chunk_line, @buffer = @buffer.split(CRLF, 2)
-            chunk_size = chunk_line.chomp(CRLF).to_i(16)
+        chunk_size = read_chunk(chunk_size, &block)
+        return if chunk_size == 0
+      end
+    end
 
-            return if chunk_size == 0
-          else
-            break
-          end
-        end
+    def read_chunk(chunk_size, &block)
+      if chunk_size.nil?
+        if @buffer.include?(CRLF)
+          chunk_line, @buffer = @buffer.split(CRLF, 2)
+          chunk_size = chunk_line.chomp(CRLF).to_i(16)
 
-        if @buffer.size >= chunk_size + 2
-          # we can read a whole chunk + CRLF
-          yield @buffer.slice!(0, chunk_size + 2).chomp(CRLF)
-          chunk_size = nil
-          redo
+          return 0 if chunk_size == 0
         else
-          # read part of a chunk, update chunk_size, break to read again
-          chunk_size -= @buffer.size
-          yield @buffer
-          @buffer = ''
+          #can't read a chunk size yet
+          return nil
         end
+      end
+
+      if @buffer.size >= chunk_size + 2
+        # we can read a whole chunk + CRLF
+        data = @buffer.slice!(0, chunk_size + 2).chomp(CRLF)
+        yield data
+        chunk_size = nil
+        read_chunk(nil, &block)
+      else
+        # read part of a chunk, update chunk_size, break to read again
+        chunk_size -= @buffer.size
+        yield @buffer
+        @buffer = ''
+        chunk_size
       end
     end
 
