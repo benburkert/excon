@@ -75,6 +75,16 @@ module Excon
       end
     end
 
+    def read_body
+      read do
+        yield @buffer
+
+        ending, @buffer = @buffer[-2..-1], ''
+
+        return if ending == CRLF
+      end
+    end
+
     def read_fixed_body(total_length)
       length = 0
 
@@ -131,7 +141,7 @@ module Excon
     end
 
     def reset!
-      @socket.close if socket.open? unless socket.nil?
+      @socket.close unless @socket.closed? unless @socket.nil?
       @socket = nil
     end
 

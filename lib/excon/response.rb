@@ -10,6 +10,7 @@ module Excon
       response = new
 
       response.status = socket.read_status
+
       socket.read_headers do |key, value|
         response.headers[key] = value
       end
@@ -20,26 +21,26 @@ module Excon
           block = lambda { |chunk| response.body << chunk }
         end
 
-        if response.headers['Connection'] == 'close'
-          block.call(socket.read)
-        elsif response.headers['Content-Length']
-          socket.read_fixed_body(response.headers['Content-Length'].to_i) do |buffer|
-            response.body << buffer.read
-          end
-
-          remaining = response.headers['Content-Length'].to_i
-          while remaining > 0
-            block.call(socket.read([CHUNK_SIZE, remaining].min))
-            remaining -= CHUNK_SIZE
+        if response.headers['Content-Length']
+          socket.read_fixed_body(response.headers['Content-Length'].to_i) do |data|
+            response.body << data
           end
         elsif response.headers['Transfer-Encoding'] == 'chunked'
           socket.read_chunked_body do |data|
+            response.body << data
+          end
+        else
+          socket.read_body do |data|
             response.body << data
           end
         end
       end
 
       response
+    #ensure
+      #if response && response.headers['Connection'] == 'close'
+        #socket.reset! if socket
+      #end
     end
 
     attr_accessor :body, :headers, :status

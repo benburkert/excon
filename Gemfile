@@ -8,5 +8,5 @@ group :test do
   gem "sinatra"
   gem "rake"
   gem "mongrel"
-  gem "open4"
+  gem "realweb",  "0.1.7.pre", :path => '/Users/ben/code/realweb/'
 end

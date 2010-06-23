@@ -1,17 +1,17 @@
 require File.expand_path(File.join(File.dirname(__FILE__), 'test_helper'))
 
-with_rackup do
+with_rackup do |base_url|
   Shindo.tests do
     test('threaded requests') do
-      connection = Excon.new('http://127.0.0.1:9292')
+      connection = Excon.new(base_url)
 
       long_thread = Thread.new {
-        response = connection.request(:method => 'GET', :path => '/id/1/wait/2')
+        response = connection.request(:method => 'GET', :path => '/wait/id/1/wait/2')
         Thread.current[:success] = response.body == '1'
       }
 
       short_thread = Thread.new {
-        response = connection.request(:method => 'GET', :path => '/id/2/wait/1')
+        response = connection.request(:method => 'GET', :path => '/wait/id/2/wait/1')
         Thread.current[:success] = response.body == '2'
       }
 
