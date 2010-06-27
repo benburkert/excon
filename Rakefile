@@ -1,6 +1,7 @@
 require 'rubygems'
 require 'rake'
 require 'date'
+require 'erb'
 
 #############################################################################
 #
@@ -144,4 +145,52 @@ task :validate do
     puts "A `VERSION` file at root level violates Gem best practices."
     exit!
   end
+end
+
+#############################################################################
+#
+# benchmark tasks
+#
+#############################################################################
+
+directory 'tmp'
+directory 'tmp/public'
+
+file 'tmp/nginx.conf' => 'tmp' do
+  template = ERB.new(File.read(File.dirname(__FILE__) + '/support/nginx.conf.erb'))
+
+  File.open('tmp/nginx.conf', 'w+') do |f|
+    f.puts template.result(binding)
+  end
+end
+
+sizes = [1, 10, 100]
+tmp_files = sizes.map {|s| "tmp/public/#{s}MB" }
+
+sizes.each do |size|
+  file "tmp/public/#{size}MB" => 'tmp/public' do
+    sh "dd if=/dev/zero of=tmp/public/#{size}MB bs=1024k count=#{size} >> /dev/null"
+  end
+end
+
+namespace :benchmark do
+  namespace :nginx do
+    task :setup => tmp_files + ['tmp/nginx.conf']
+
+    task :start => :setup do
+      system("nginx -c #{Dir.pwd}/tmp/nginx.conf -s stop") if system('lsof -i tcp:8080 | grep LISTEN >> /dev/null')
+      system("nginx -c #{Dir.pwd}/tmp/nginx.conf")
+    end
+
+    task :run => :start do
+      system("rvm ruby #{Dir.pwd}/benchmarks/nginx.rb")
+    end
+
+    task :teardown do
+      system("nginx -c #{Dir.pwd}/tmp/nginx.conf -s stop") unless system('lsof -i tcp:8080 | grep LISTEN >> /dev/null')
+    end
+  end
+
+  desc "Run the nginx benchmarks."
+  task :nginx => ['nginx:run', 'nginx:teardown']
 end
