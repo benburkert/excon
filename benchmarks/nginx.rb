@@ -7,6 +7,9 @@ require 'open-uri'
 COUNT = 100
 SIZES = %w( 1MB 10MB )
 
+puts "Nginx Benchmarks"
+puts
+
 Benchmark.bmbm(25) do |bench|
   SIZES.each do |size|
     bench.report("excon - #{size}") do
