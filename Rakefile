@@ -2,6 +2,7 @@ require 'rubygems'
 require 'rake'
 require 'date'
 require 'erb'
+require 'open3'
 
 #############################################################################
 #
@@ -164,7 +165,7 @@ file 'tmp/nginx.conf' => 'tmp' do
   end
 end
 
-sizes = [1, 10, 100]
+sizes = [1, 10]
 tmp_files = sizes.map {|s| "tmp/public/#{s}MB" }
 
 sizes.each do |size|
@@ -178,19 +179,38 @@ namespace :benchmark do
     task :setup => tmp_files + ['tmp/nginx.conf']
 
     task :start => :setup do
-      system("nginx -c #{Dir.pwd}/tmp/nginx.conf -s stop") if system('lsof -i tcp:8080 | grep LISTEN >> /dev/null')
-      system("nginx -c #{Dir.pwd}/tmp/nginx.conf")
+      sh("nginx -c #{Dir.pwd}/tmp/nginx.conf -s stop") if sh('lsof -i tcp:8080 | grep LISTEN >> /dev/null')
+      sh("nginx -c #{Dir.pwd}/tmp/nginx.conf")
     end
 
     task :run => :start do
-      system("rvm ruby #{Dir.pwd}/benchmarks/nginx.rb")
+      sh("rvm ruby #{Dir.pwd}/benchmarks/nginx.rb")
     end
 
     task :teardown do
-      system("nginx -c #{Dir.pwd}/tmp/nginx.conf -s stop") unless system('lsof -i tcp:8080 | grep LISTEN >> /dev/null')
+      sh("nginx -c #{Dir.pwd}/tmp/nginx.conf -s stop") unless sh('lsof -i tcp:8080 | grep LISTEN >> /dev/null')
     end
   end
 
   desc "Run the nginx benchmarks."
   task :nginx => ['nginx:run', 'nginx:teardown']
+
+  namespace :node do
+    task :start do
+      sizes.each do |size|
+        Open3.popen3("node support/#{size}MB.js")
+        Open3.popen3("node support/#{size}MB_chunked.js")
+      end
+    end
+
+    task :run => :start do
+      sh("rvm ruby #{Dir.pwd}/benchmarks/node.rb")
+    end
+  end
+
+  desc "Run the node benchmarks."
+  task :node => 'node:run'
 end
+
+desc "Run the nginx & node benchmarks."
+task :benchmark => ['benchmark:nginx', 'benchmark:node']

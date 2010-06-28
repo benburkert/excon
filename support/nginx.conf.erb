@@ -1,0 +1,23 @@
+worker_processes 1;
+
+pid <%= Dir.pwd %>/tmp/nginx.pid;
+
+events {
+  worker_connections 1024;
+}
+
+http {
+
+  sendfile  on;
+  gzip      off;
+
+  root <%= Dir.pwd %>/tmp/public;
+
+  server {
+    listen 8080;
+
+    if (-f $request_filename) {
+      break;
+    }
+  }
+}
