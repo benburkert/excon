@@ -28,7 +28,6 @@ module Excon
       nil
     end
 
-
     def read
       yield unless @buffer.empty?
 
@@ -99,40 +98,51 @@ module Excon
       end
     end
 
-    def read_chunked_body(&block)
-      chunk_buffer, chunk_size = '', nil
+    def read_chunked_body
+      size = nil
 
       read do
-        chunk_size = read_chunk(chunk_size, &block)
-        return if chunk_size == 0
+        state, chunk_buffer = :ready, ''
+
+        begin
+          size, state = read_chunk_header if size.nil?
+
+          if state == :ready
+            chunk, size, state = read_chunk(size)
+            chunk_buffer << chunk
+          end
+
+        end while state == :ready
+
+        yield chunk_buffer unless chunk_buffer.empty?
+
+        return if state == :EOF
       end
     end
 
-    def read_chunk(chunk_size, &block)
-      if chunk_size.nil?
-        if @buffer.include?(CRLF)
-          chunk_line, @buffer = @buffer.split(CRLF, 2)
-          chunk_size = chunk_line.chomp(CRLF).to_i(16)
-
-          return 0 if chunk_size == 0
-        else
-          #can't read a chunk size yet
-          return nil
-        end
+    def read_chunk_header
+      if index = @buffer.index(CRLF)
+        size = @buffer.slice!(0, index + 2).chomp!.to_i(16)
       end
 
-      if @buffer.size >= chunk_size + 2
-        # we can read a whole chunk + CRLF
-        data = @buffer.slice!(0, chunk_size + 2).chomp(CRLF)
-        yield data
-        chunk_size = nil
-        read_chunk(nil, &block)
+      state = if size.nil? || @buffer.empty?
+          :not_ready
+        elsif size == 0
+          :EOF
+        else
+          :ready
+        end
+
+      return size, state
+    end
+
+    def read_chunk(size)
+
+      if @buffer.size >= size + 2
+        return @buffer.slice!(0, size + 2).chomp!(CRLF), nil, :ready
       else
-        # read part of a chunk, update chunk_size, break to read again
-        chunk_size -= @buffer.size
-        yield @buffer
-        @buffer = ''
-        chunk_size
+        data, @buffer = @buffer, ''
+        return data, size - data.size, :empty
       end
     end
 
@@ -147,12 +157,6 @@ module Excon
 
     def socket
       @socket ||= TCPSocket.new(@host, @port)
-    end
-
-    def change(buffer)
-      initial = buffer.size
-      yield
-      buffer.size - initial
     end
   end
 end

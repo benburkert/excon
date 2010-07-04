@@ -22,7 +22,7 @@ module Excon
   end
 
   def self.chunk_size
-    @@chunk_size ||= 1048576 # 1 megabyte
+    @@chunk_size ||= 24576 #24KB
   end
 
   def self.chunk_size=(size)
