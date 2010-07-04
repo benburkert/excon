@@ -179,7 +179,7 @@ namespace :benchmark do
     task :setup => tmp_files + ['tmp/nginx.conf']
 
     task :start => :setup do
-      sh("nginx -c #{Dir.pwd}/tmp/nginx.conf -s stop") if sh('lsof -i tcp:8080 | grep LISTEN >> /dev/null')
+      sh("nginx -c #{Dir.pwd}/tmp/nginx.conf -s stop") if system('lsof -i tcp:8080 | grep -q LISTEN')
       sh("nginx -c #{Dir.pwd}/tmp/nginx.conf")
     end
 
@@ -188,7 +188,7 @@ namespace :benchmark do
     end
 
     task :teardown do
-      sh("nginx -c #{Dir.pwd}/tmp/nginx.conf -s stop") unless sh('lsof -i tcp:8080 | grep LISTEN >> /dev/null')
+      sh("nginx -c #{Dir.pwd}/tmp/nginx.conf -s stop") unless system('lsof -i tcp:8080 | grep -q LISTEN')
     end
   end
 
