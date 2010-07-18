@@ -9,7 +9,7 @@ module Excon
 
       response = new
 
-      response.status = socket.read_status
+      response.status = socket.read_status.to_i
 
       socket.read_headers do |key, value|
         response.headers[key] = value
@@ -22,17 +22,12 @@ module Excon
         end
 
         if response.headers['Content-Length']
-          socket.read_fixed_body(response.headers['Content-Length'].to_i) do |data|
-            response.body << data
-          end
+          return response if response.headers['Content-Length'].to_i == 0
+          socket.read_fixed_body(response.headers['Content-Length'].to_i, &block)
         elsif response.headers['Transfer-Encoding'] == 'chunked'
-          socket.read_chunked_body do |data|
-            response.body << data
-          end
+          socket.read_chunked_body(&block)
         else
-          socket.read_body do |data|
-            response.body << data
-          end
+          socket.read_body(&block)
         end
       end
 

@@ -12,7 +12,7 @@ module Excon
     end
 
     def write(io)
-      reset_stale!
+      reset! if stale?
 
       until io.eof?
         socket << io.read(@chunk_size)
@@ -94,7 +94,7 @@ module Excon
 
         @buffer = ''
 
-        return if length == total_length
+        return if length >= total_length
       end
     end
 
@@ -128,6 +128,7 @@ module Excon
       state = if size.nil? || @buffer.empty?
           :not_ready
         elsif size == 0
+          @buffer = ''
           :EOF
         else
           :ready
@@ -146,8 +147,8 @@ module Excon
       end
     end
 
-    def reset_stale!
-      reset! if socket.closed?
+    def stale?
+      socket.closed?
     end
 
     def reset!

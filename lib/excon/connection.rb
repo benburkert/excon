@@ -34,15 +34,17 @@ module Excon
           request << "#{key}: #{value}\r\n"
         end
         request << "\r\n"
-        io = StringIO.new(request)
 
-        if params[:body] ||= @connection[:body]
-          if params[:body].is_a?(String)
-            io << params[:body]
+        io = if body = (params[:body] || @connection[:body])
+          if body.is_a?(String)
+            StringIO.new(request + body)
           else
-            IO.copy_stream(params[:body], io)
+            raise 'fail'
           end
+        else
+          StringIO.new(request)
         end
+
 
         socket.write(io)
 
@@ -79,7 +81,7 @@ module Excon
     end
 
     def reset
-      (old_socket = sockets.delete(socket_key)) && old_socket.close
+      @socket = nil
     end
 
     private
@@ -109,7 +111,13 @@ module Excon
     end
 
     def socket
-      @socket ||= Socket.new(@connection[:host], @connection[:port])
+      @socket ||= begin
+        if @connection[:scheme] == 'https'
+          SSLSocket.new(@connection[:host], @connection[:port])
+        else
+          Socket.new(@connection[:host], @connection[:port])
+        end
+      end
     end
 
     def sockets
