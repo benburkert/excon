@@ -2,6 +2,7 @@ module Excon
 
   module Errors
     class Error < StandardError; end
+    class TimeoutError < Error; end
 
     class Continue < Error; end                     # 100
     class SwitchingProtocols < Error; end           # 101

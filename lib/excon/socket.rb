@@ -31,12 +31,16 @@ module Excon
       end
     end
 
-    def readable?
-      select([socket], nil, nil, @timeout)
+    def readpartial(size = @chunk_size)
+      Timeout::timeout(@timeout) do
+        socket.readpartial(size)
+      end
+    rescue Timeout::Error
+      raise Errors::TimeoutError
     end
 
     def drain
-      while chunk = socket.readpartial(@chunk_size)
+      while chunk = readpartial
         yield chunk
       end
 
