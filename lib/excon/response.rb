@@ -7,44 +7,67 @@ module Excon
         block = params[:block]
       end
 
-      response = new
-
-      response.status = socket.read_status.to_i
-
-      socket.read_headers do |key, value|
-        response.headers[key] = value
-      end
-
-      unless params[:method] == 'HEAD'
-        if !block || (params[:expects] && ![*params[:expects]].include?(response.status))
-          response.body = ''
-          block = lambda { |chunk| response.body << chunk }
-        end
-
-        if response.headers['Content-Length']
-          return response if response.headers['Content-Length'].to_i == 0
-          socket.read_fixed_body(response.headers['Content-Length'].to_i, &block)
-        elsif response.headers['Transfer-Encoding'] == 'chunked'
-          socket.read_chunked_body(&block)
+      response = if block
+          new(params[:method], block)
         else
-          socket.read_body(&block)
+          new(params[:method])
         end
-      end
+
+      response.parse(socket)
 
       response
-    #ensure
-      #if response && response.headers['Connection'] == 'close'
-        #socket.reset! if socket
-      #end
     end
 
-    attr_accessor :body, :headers, :status
+    attr_accessor :body, :headers, :status, :callback, :request_method
 
-    def initialize(attributes = {})
-      @body    = attributes[:body] || ''
-      @headers = attributes[:headers] || {}
-      @status  = attributes[:status]
+    def initialize(request_method, callback = method(:add_body_chunk))
+      @request_method, @callback = request_method.upcase, callback
+      @body, @headers = '', {}
     end
 
+    def parse(socket)
+      self.status = socket.read_status.to_i
+
+      socket.read_headers do |key, value|
+        self.headers[key] = value
+      end
+
+      read_body_from(socket) unless bodyless?
+    end
+
+    def read_body_from(socket)
+      if fixed_body?
+        socket.read_fixed_body(content_length, &callback)
+      elsif chunked_body?
+        socket.read_chunked_body(&callback)
+      else
+        socket.read_body(&callback)
+      end
+    end
+
+    def fixed_body?
+      headers.keys.include?('Content-Length')
+    end
+
+    def chunked_body?
+      headers.keys.include?('Transfer-Encoding')
+    end
+
+    def content_length
+      headers['Content-Length'].to_i
+    end
+
+    def add_body_chunk(chunk)
+      body << chunk
+    end
+
+    def bodyless?
+      request_method == 'HEAD' ||
+        (fixed_body? && content_length == 0)
+    end
+
+    def close_connection?
+      headers['Connection'] == 'close'
+    end
   end
 end

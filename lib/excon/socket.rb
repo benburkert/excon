@@ -2,26 +2,43 @@ module Excon
   class Socket
     attr_accessor :host, :port
 
-    CRLF = "\r\n"
 
     def initialize(host, port, options = {})
       @host, @port = host, port
 
       @chunk_size = options.fetch(:chunk_size, Excon.chunk_size)
       @buffer     = options.fetch(:buffer, '')
+      @timeout    = options.fetch(:timeout, 1)
     end
 
-    def write(io)
+    def write(*parts)
       reset! if stale?
 
+      parts.each do |part|
+        case part
+        when String then write_string(part)
+        when IO     then write_io(part)
+        end
+      end
+    end
+
+    def write_string(string)
+      socket << string
+    end
+
+    def write_io(io)
       until io.eof?
         socket << io.read(@chunk_size)
       end
     end
 
+    def readable?
+      select([socket], nil, nil, @timeout)
+    end
+
     def drain
-      while buf = socket.readpartial(@chunk_size)
-        yield buf if block_given?
+      while chunk = socket.readpartial(@chunk_size)
+        yield chunk
       end
 
     rescue EOFError
@@ -152,8 +169,12 @@ module Excon
     end
 
     def reset!
-      @socket.close unless @socket.closed? unless @socket.nil?
+      close!
       @socket = nil
+    end
+
+    def close!
+      @socket.close unless @socket.closed? unless @socket.nil?
     end
 
     def socket

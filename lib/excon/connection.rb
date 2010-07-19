@@ -14,101 +14,52 @@ module Excon
     end
 
     def request(params, &block)
-      begin
-        params[:path] ||= @connection[:path]
-        unless params[:path][0..0] == '/'
-          params[:path] = "/#{params[:path]}"
-        end
-        request = "#{params[:method]} #{params[:path]}?"
-        for key, value in (params[:query] || @connection[:query] || {})
-          request << "#{key}#{value && "=#{CGI.escape(value.to_s)}"}&"
-        end
-        request.chop!
-        request << " HTTP/1.1\r\n"
-        params[:headers] ||= @connection[:headers]
-        params[:headers]['Host'] ||= params[:host] || @connection[:host]
-        unless params[:headers]['Content-Length']
-          params[:headers]['Content-Length'] = (params[:body] && params[:body].length) || 0
-        end
-        for key, value in params[:headers]
-          request << "#{key}: #{value}\r\n"
-        end
-        request << "\r\n"
+      request = Request.new(params[:method], path_for(params), headers_for(params), body_for(params))
 
-        io = if body = (params[:body] || @connection[:body])
-          if body.is_a?(String)
-            StringIO.new(request + body)
-          else
-            raise 'fail'
-          end
-        else
-          StringIO.new(request)
-        end
+      request.perform(socket)
 
+      response = Response.parse(socket, params, &block)
+    ensure
+      reset if response.close_connection? unless response.nil?
+    end
 
-        socket.write(io)
+    def path_for(params)
+      path = params[:path] || @connection[:path] || raise(ArgumentException, ":path parameter missing.")
+      path = "/#{path}" unless path[0] == ?/
 
-        response = Excon::Response.parse(socket, params, &block)
-        if response.headers['Connection'] == 'close'
-          reset
-        end
-        response
-      rescue => socket_error
-        reset
-        raise(socket_error)
-      end
-
-      if params[:expects] && ![*params[:expects]].include?(response.status)
-        reset
-        raise(Excon::Errors.status_error(params, response))
+      unless (query_params = params[:query] || @connection[:query] || {}).empty?
+        [ path, query_for(query_params) ].join('?')
       else
-        response
-      end
-
-    rescue => request_error
-      if params[:idempotent] &&
-          (!request_error.is_a?(Excon::Errors::Error) || response.status != 404)
-        retries_remaining ||= 4
-        retries_remaining -= 1
-        if retries_remaining > 0
-          retry
-        else
-          raise(request_error)
-        end
-      else
-        raise(request_error)
+        path
       end
     end
 
+    def query_for(query_params)
+      query_params.map {|(k,v)| query_part(k,v) }.join('&')
+    end
+
+    def query_part(key, value)
+      value.nil? ? escape(key) : [ escape(key), escape(value) ].join('=')
+    end
+
+    def headers_for(params)
+      headers = params[:headers] || @connection[:headers]
+
+      headers['Host'] ||= params[:host] || @connection[:host]
+
+      headers
+    end
+
+    def body_for(params)
+      params[:body] || @connection[:body]
+    end
+
     def reset
+      @socket.close! unless @socket.nil?
       @socket = nil
     end
 
     private
-
-    def connect
-      new_socket = nil
-      Timeout::timeout(1) do
-        new_socket = TCPSocket.open(@connection[:host], @connection[:port])
-
-        if @connection[:scheme] == 'https'
-          @ssl_context = OpenSSL::SSL::SSLContext.new
-          @ssl_context.verify_mode = OpenSSL::SSL::VERIFY_NONE
-          new_socket = OpenSSL::SSL::SSLSocket.new(new_socket, @ssl_context)
-          new_socket.sync_close = true
-          new_socket.connect
-        end
-
-        new_socket
-      end
-    rescue Timeout::Exception
-      new_socket.close unless new_socket.nil?
-      retry
-    end
-
-    def closed?
-      sockets[socket_key] && sockets[socket_key].closed?
-    end
 
     def socket
       @socket ||= begin
