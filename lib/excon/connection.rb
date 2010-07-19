@@ -55,19 +55,21 @@ module Excon
     end
 
     def reset
-      @socket.close! unless @socket.nil?
-      @socket = nil
+      socket.close! unless socket.nil?
+      socket = nil
     end
 
     private
 
     def socket
-      @socket ||= begin
-        if @connection[:scheme] == 'https'
-          SSLSocket.new(@connection[:host], @connection[:port])
-        else
-          Socket.new(@connection[:host], @connection[:port])
-        end
+      sockets[socket_key] ||= create_socket
+    end
+
+    def create_socket
+      if @connection[:scheme] == 'https'
+        SSLSocket.new(@connection[:host], @connection[:port])
+      else
+        Socket.new(@connection[:host], @connection[:port])
       end
     end
 

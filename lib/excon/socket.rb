@@ -2,7 +2,6 @@ module Excon
   class Socket
     attr_accessor :host, :port
 
-
     def initialize(host, port, options = {})
       @host, @port = host, port
 
