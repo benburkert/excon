@@ -46,7 +46,7 @@ module Excon
         params = @connection.merge(params)
         params[:headers] = @connection[:headers].merge(params[:headers] || {})
         if params[:host]
-          params[:headers]['Host'] = params[:host]
+          params[:headers]['Host'] ||= params[:host]
         end
 
         # if path is empty or doesn't start with '/', insert one
