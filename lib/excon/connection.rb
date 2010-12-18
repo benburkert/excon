@@ -11,7 +11,7 @@ module Excon
     #   @param [Hash<Symbol, >] params One or more optional params
     #     @option params [String] :body Default text to be sent over a socket. Only used if :body absent in Connection#request params
     #     @option params [Hash<Symbol, String>] :headers The default headers to supply in a request. Only used if params[:headers] is not supplied to Connection#request
-    #     @option params [String] :host The destination host's reachable DNS name or IP, in the form of a String
+    #     @option params [String] :host The destination host's reachable DNS name or IP, with optional port, in the form of a String
     #     @option params [String] :path Default path; appears after 'scheme://host:port/'. Only used if params[:path] is not supplied to Connection#request
     #     @option params [Fixnum] :port The port on which to connect, to the destination host
     #     @option params [Hash]   :query Default query; appended to the 'scheme://host:port/path/' in the form of '?key=value'. Will only be used if params[:query] is not supplied to Connection#request
@@ -19,8 +19,8 @@ module Excon
     def initialize(url, params = {})
       uri = URI.parse(url)
       @connection = {
-        :headers  => { 'Host' => uri.host },
-        :host     => uri.host,
+        :headers  => { 'Host' => host_for(uri.host) },
+        :host     => host_for(uri.host),
         :path     => uri.path,
         :port     => uri.port,
         :query    => uri.query,
@@ -192,6 +192,14 @@ module Excon
 
     def sockets
       Thread.current[:_excon_sockets] ||= {}
+    end
+
+    def host_for(uri)
+      if uri.include?(":#{uri.port}")
+        [uri.host, uri.port].join(':')
+      else
+        uri.host
+      end
     end
 
   end
